@@ -1,0 +1,59 @@
+# Local observation stack: PostgreSQL + FastAPI ingestion/analytics backend.
+#
+#   Start:              docker compose up --build
+#   Stop (keep data):   docker compose down
+#   Stop (wipe events): docker compose down -v     # deletes stored events!
+#
+# The dashboard UI runs on the host with `npm run dev` and reaches the
+# backend at http://127.0.0.1:8000.
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: pos_remote_db
+    environment:
+      POSTGRES_USER: pos_user
+      POSTGRES_PASSWORD: pos_dev_password
+      POSTGRES_DB: pos_remote_db
+    ports:
+      # Host 5432 is often taken by another project's Postgres; expose
+      # the dev DB on a clearly non-default port. The backend always
+      # reaches it over the compose network as "db:5432".
+      - "15432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # schema.sql is applied automatically on FIRST volume initialization.
+      - ./vps_backend/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pos_user -d pos_remote_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  backend:
+    build: ./vps_backend
+    container_name: pos_remote_api
+    environment:
+      DATABASE_URL: postgresql://pos_user:pos_dev_password@db:5432/pos_remote_db
+      # DEV credentials — intentionally identical to possystem's defaults so
+      # a register pairs with zero config. Change them for anything that is
+      # reachable beyond localhost, and mirror them in the POS env.
+      API_BEARER_TOKEN: your_secure_bearer_token
+      DASHBOARD_API_KEY: owner_secure_access_key
+      DASHBOARD_ALLOWED_ORIGINS: "*"
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  pgdata:

@@ -24,18 +24,28 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 
 from app.config import settings
 from app.database import get_pool
+from app.routes.auth import session_is_valid
 
 
-def verify_dashboard_access(
+async def verify_dashboard_access(
     x_api_key: Optional[str] = Header(default=None),
+    authorization: Optional[str] = Header(default=None),
 ) -> None:
-    if not x_api_key or not secrets.compare_digest(
+    """Accepts EITHER the static owner key (X-API-Key, server-to-server)
+    OR an admin session token ("Authorization: Bearer ...") issued by
+    POST /api/v1/auth/login."""
+    if x_api_key and secrets.compare_digest(
         x_api_key, settings.DASHBOARD_API_KEY
     ):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid dashboard credentials",
-        )
+        return
+    if authorization and authorization.startswith("Bearer "):
+        raw_token = authorization[len("Bearer "):].strip()
+        if raw_token and await session_is_valid(raw_token):
+            return
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid dashboard credentials",
+    )
 
 
 router = APIRouter(

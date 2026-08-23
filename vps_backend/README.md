@@ -90,10 +90,39 @@ vps_backend/
 | Method & path | Auth | Purpose |
 |---|---|---|
 | `POST /api/v1/sync/events` | Bearer token (POS) | Idempotent batch ingestion |
-| `GET /api/v1/dashboard/summary?date=YYYY-MM-DD` | `X-API-Key` | Daily revenue/refunds/payment split + expected drawer cash |
-| `GET /api/v1/dashboard/activity?limit=50` | `X-API-Key` | Latest raw events |
-| `GET /api/v1/dashboard/shifts?limit=20` | `X-API-Key` | Register sessions w/ close-out variance |
+| `POST /api/v1/auth/login` | none (rate-damped) | Exchange admin credentials for a session token |
+| `GET /api/v1/dashboard/summary?date=YYYY-MM-DD` | `X-API-Key` or Bearer session | Daily revenue/refunds/payment split + expected drawer cash |
+| `GET /api/v1/dashboard/activity?limit=50` | `X-API-Key` or Bearer session | Latest raw events |
+| `GET /api/v1/dashboard/shifts?limit=20` | `X-API-Key` or Bearer session | Register sessions w/ close-out variance |
 | `GET /health` | none | Liveness + DB ping |
+
+## Onboarding & admin accounts
+
+On first installation, create the dashboard admin interactively:
+
+```bash
+# against the Docker stack from the host (note the 15432 host port):
+DATABASE_URL=postgresql://pos_user:pos_dev_password@localhost:15432/pos_remote_db \
+    python scripts/onboard.py
+
+# or from inside the running backend container:
+docker compose exec backend python scripts/onboard.py
+```
+
+The script self-creates its tables (`admin_users`, `sessions`), so it
+also upgrades databases initialized before this feature existed.
+
+- Passwords are hashed with **scrypt** (stdlib, memory-hard); only the
+  hash is stored.
+- `POST /api/v1/auth/login` returns an opaque bearer session
+  (`SESSION_TTL_HOURS`, default 24). Only SHA-256 digests of tokens are
+  stored, so a DB leak cannot be replayed.
+- Dashboard routes accept either credential: the static `X-API-Key`
+  (server-to-server, unchanged) or `Authorization: Bearer <session>`.
+- Non-interactive / automation:
+  `python scripts/onboard.py --username owner --password-env ADMIN_PW`
+- Forgot the password? Re-run with `--reset` — it also revokes all
+  issued sessions.
 
 ### Example
 
@@ -109,6 +138,26 @@ curl -H "Authorization: Bearer $API_BEARER_TOKEN" \
 ```
 
 ## Local development
+
+### Docker (recommended)
+
+From the repo root (`possystem-web/`):
+
+```bash
+docker compose up --build
+```
+
+This starts PostgreSQL 16 and the API. The schema is applied
+automatically on first start; dev credentials match possystem's
+defaults so a register pairs with zero config. Then run the smoke test
+against it:
+
+```bash
+python scripts/smoke_test.py http://127.0.0.1:8000 \
+    your_secure_bearer_token owner_secure_access_key
+```
+
+### Bare metal
 
 ```bash
 cd vps_backend

@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import close_db_pool, get_pool, init_db_pool
-from app.routes import dashboard, ingestion
+from app.routes import auth, dashboard, ingestion
 
 logger = logging.getLogger("pos.backend")
 
@@ -50,6 +50,7 @@ app.add_middleware(
     allow_headers=["Authorization", "X-API-Key", "Content-Type"],
 )
 
+app.include_router(auth.router)
 app.include_router(ingestion.router)
 app.include_router(dashboard.router)
 

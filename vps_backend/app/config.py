@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     # Hard cap on events per batch. The POS worker sends BATCH_SIZE=50.
     MAX_BATCH_EVENTS: int = 200
 
+    # Admin login sessions (POST /api/v1/auth/login) live this long.
+    SESSION_TTL_HOURS: int = 24
+
     PORT: int = 8000
 
     @property

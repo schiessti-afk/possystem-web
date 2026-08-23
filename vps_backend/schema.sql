@@ -22,3 +22,21 @@ CREATE INDEX IF NOT EXISTS idx_events_user     ON events(user_id);
 -- and refunds reference data->>'original_transaction_id' on a SALE event.
 CREATE INDEX IF NOT EXISTS idx_events_data_session ON events ((data->>'session_id'));
 CREATE INDEX IF NOT EXISTS idx_events_data_tx      ON events ((data->>'transaction_id'));
+
+-- Dashboard admin accounts (created by scripts/onboard.py).
+CREATE TABLE IF NOT EXISTS admin_users (
+    username      VARCHAR(32) PRIMARY KEY,
+    password_hash TEXT NOT NULL,            -- scrypt$N$r$p$salt_hex$hash_hex
+    created_at    TIMESTAMPTZ DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Opaque bearer sessions issued by POST /api/v1/auth/login.
+-- Only the SHA-256 digest of each token is stored, so a database leak
+-- cannot be replayed against the API.
+CREATE TABLE IF NOT EXISTS sessions (
+    token_hash CHAR(64) PRIMARY KEY,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL
+);
+

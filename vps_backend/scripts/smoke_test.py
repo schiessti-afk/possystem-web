@@ -5,6 +5,7 @@ way possystem's sync worker would, then reads the dashboard endpoints.
 
 Usage:
     python scripts/smoke_test.py https://your-vps.com <SYNC_TOKEN> <DASH_KEY>
+        [ADMIN_USER ADMIN_PASS]
 """
 import json
 import sys
@@ -29,6 +30,8 @@ def call(url: str, token: str, path: str, body=None, header_name="Authorization"
 
 def main() -> int:
     base, sync_token, dash_key = sys.argv[1], sys.argv[2], sys.argv[3]
+    admin_user = sys.argv[4] if len(sys.argv) > 4 else None
+    admin_pass = sys.argv[5] if len(sys.argv) > 5 else None
     now = datetime.now(timezone.utc)
     session = f"smoke_{uuid4().hex[:12]}"
 
@@ -64,10 +67,12 @@ def main() -> int:
     print(f"sync replay -> {status_} {body}  (new_events must be 0)")
     assert status_ == 200 and body.get("new_events") == 0, "idempotency failed"
 
-    status_, body = call(base, dash_key, "/api/v1/dashboard/summary")
+    status_, body = call(base, dash_key, "/api/v1/dashboard/summary",
+                         header_name="X-API-Key")
     print(f"summary -> {status_} {json.dumps(body, indent=2)}")
 
-    status_, body = call(base, dash_key, "/api/v1/dashboard/shifts?limit=3")
+    status_, body = call(base, dash_key, "/api/v1/dashboard/shifts?limit=3",
+                         header_name="X-API-Key")
     print(f"shifts -> {status_} {json.dumps(body[:1], indent=2)}")
 
     try:
@@ -76,6 +81,32 @@ def main() -> int:
         return 1
     except urllib.error.HTTPError as e:
         print(f"dashboard without key -> HTTP {e.code} (expected 401) OK")
+
+    if admin_user and admin_pass:
+        # Admin login flow: bad password rejected, good one issues a
+        # bearer session accepted by the dashboard routes.
+        try:
+            call(base, admin_user, "/api/v1/auth/login",
+                 {"username": admin_user, "password": "definitely-wrong"})
+            print("FAIL: login accepted a wrong password!")
+            return 1
+        except urllib.error.HTTPError as e:
+            print(f"login wrong password -> HTTP {e.code} (expected 401) OK")
+
+        status_, body = call(base, "", "/api/v1/auth/login",
+                             {"username": admin_user, "password": admin_pass})
+        print(f"login -> {status_}")
+        assert status_ == 200 and body.get("access_token"), "admin login failed"
+
+        token = body["access_token"]
+        headers = {"Content-Type": "application/json",
+                   "Authorization": f"Bearer {token}"}
+        req = urllib.request.Request(base.rstrip("/") + "/api/v1/dashboard/summary",
+                                     headers=headers)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            print(f"summary via Bearer session -> {resp.status} "
+                  "(expected 200) OK")
+            assert resp.status == 200
 
     print("cash refund check: send REFUND for cash_tx to see the drawer drop.")
     _ = cash_tx
