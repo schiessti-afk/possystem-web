@@ -1,0 +1,220 @@
+"""Owner dashboard analytics endpoints.
+
+All routes require the X-API-Key header to equal DASHBOARD_API_KEY.
+Read-only by design: nothing here can push state to a register.
+
+Aggregations are computed from the raw event log. The queries rely on
+the exact payload contract staged by possystem's app/pos_service.py:
+
+  REGISTER_OPENED  data: session_id, opening_float
+  SALE             data: transaction_id, session_id, gross_amount,
+                         payment_method ('cash' | 'card' | 'other')
+  REFUND           data: original_transaction_id, refund_amount, reason
+                   (NOTE: no payment_method — cash-ness is resolved by
+                    joining back to the original SALE event)
+  CASH_IN/OUT      data: adjustment_id, session_id, amount, reason
+  REGISTER_CLOSED  data: session_id, counted_cash, expected_cash,
+                         variance
+"""
+import secrets
+from datetime import datetime
+from typing import Optional
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+
+from app.config import settings
+from app.database import get_pool
+
+
+def verify_dashboard_access(
+    x_api_key: Optional[str] = Header(default=None),
+) -> None:
+    if not x_api_key or not secrets.compare_digest(
+        x_api_key, settings.DASHBOARD_API_KEY
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid dashboard credentials",
+        )
+
+
+router = APIRouter(
+    prefix="/api/v1/dashboard",
+    tags=["Dashboard"],
+    dependencies=[Depends(verify_dashboard_access)],
+)
+
+
+# ---------------------------------------------------------------- summary
+
+_SUMMARY_METRICS = """
+SELECT
+    COALESCE(SUM((data->>'gross_amount')::numeric)
+        FILTER (WHERE event_type = 'SALE'), 0)                          AS total_revenue,
+    COALESCE(SUM((data->>'refund_amount')::numeric)
+        FILTER (WHERE event_type = 'REFUND'), 0)                        AS total_refunds,
+    COALESCE(SUM((data->>'gross_amount')::numeric)
+        FILTER (WHERE event_type = 'SALE'), 0)
+    - COALESCE(SUM((data->>'refund_amount')::numeric)
+        FILTER (WHERE event_type = 'REFUND'), 0)                        AS net_revenue,
+    COUNT(*) FILTER (WHERE event_type = 'SALE')                         AS total_sales_count,
+    COALESCE(SUM((data->>'gross_amount')::numeric)
+        FILTER (WHERE event_type = 'SALE'
+                AND data->>'payment_method' = 'cash'), 0)               AS cash_revenue,
+    COALESCE(SUM((data->>'gross_amount')::numeric)
+        FILTER (WHERE event_type = 'SALE'
+                AND data->>'payment_method' = 'card'), 0)               AS card_revenue,
+    COALESCE(SUM((data->>'gross_amount')::numeric)
+        FILTER (WHERE event_type = 'SALE'
+                AND data->>'payment_method' = 'other'), 0)              AS other_revenue,
+    COUNT(*) FILTER (WHERE event_type = 'REGISTER_OPENED')              AS shifts_opened,
+    COUNT(*) FILTER (WHERE event_type = 'REGISTER_CLOSED')              AS shifts_closed
+FROM events
+WHERE occurred_at::date = COALESCE($1::date, CURRENT_DATE);
+"""
+
+# Expected physical cash for the most recent still-open register session.
+#
+#   float + cash sales of this session + CASH_IN - CASH_OUT
+#         - cash refunds that occurred during the shift window
+#
+# A REFUND event does not carry a payment method, so "cash refund" is
+# resolved via EXISTS against the original SALE event's payment_method.
+# Refunds are time-scoped (not session-scoped): money refunded during
+# the current shift leaves *this* drawer even if it reverses an older
+# session's sale. Components use scalar subqueries instead of joins to
+# avoid cartesian fan-out between event kinds.
+_EXPECTED_CASH = """
+WITH open_session AS (
+    SELECT e.data->>'session_id'                 AS session_id,
+           (e.data->>'opening_float')::numeric   AS opening_float,
+           e.occurred_at                         AS opened_at
+    FROM events e
+    WHERE e.event_type = 'REGISTER_OPENED'
+      AND NOT EXISTS (
+            SELECT 1
+            FROM events ec
+            WHERE ec.event_type = 'REGISTER_CLOSED'
+              AND ec.data->>'session_id' = e.data->>'session_id')
+    ORDER BY e.occurred_at DESC
+    LIMIT 1
+)
+SELECT
+    os.session_id                                                        AS open_session_id,
+    os.opened_at                                                         AS opened_at,
+    os.opening_float
+    + (SELECT COALESCE(SUM((s.data->>'gross_amount')::numeric), 0)
+       FROM events s
+       WHERE s.event_type = 'SALE'
+         AND s.data->>'payment_method' = 'cash'
+         AND s.data->>'session_id' = os.session_id)
+    + (SELECT COALESCE(SUM((i.data->>'amount')::numeric), 0)
+       FROM events i
+       WHERE i.event_type = 'CASH_IN'
+         AND i.data->>'session_id' = os.session_id)
+    - (SELECT COALESCE(SUM((o.data->>'amount')::numeric), 0)
+       FROM events o
+       WHERE o.event_type = 'CASH_OUT'
+         AND o.data->>'session_id' = os.session_id)
+    - (SELECT COALESCE(SUM((r.data->>'refund_amount')::numeric), 0)
+       FROM events r
+       WHERE r.event_type = 'REFUND'
+         AND r.occurred_at >= os.opened_at
+         AND EXISTS (
+               SELECT 1 FROM events sa
+               WHERE sa.event_type = 'SALE'
+                 AND sa.data->>'transaction_id'
+                     = r.data->>'original_transaction_id'
+                 AND sa.data->>'payment_method' = 'cash'))
+                                                                         AS expected_cash_in_drawer
+FROM open_session os;
+"""
+
+
+def _parse_date_or_422(date: Optional[str]) -> Optional[datetime.date]:
+    """asyncpg's date codec expects datetime.date for a ::date param."""
+    if date is None:
+        return None
+    try:
+        return datetime.strptime(date, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="date must be formatted YYYY-MM-DD",
+        )
+
+
+@router.get("/summary")
+async def get_summary_metrics(date: Optional[str] = None):
+    """Revenue, refund and payment-split metrics for one business day
+    (default: today), plus expected cash in the currently open drawer."""
+    day = _parse_date_or_422(date)
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        metrics_row = await conn.fetchrow(_SUMMARY_METRICS, day)
+        cash_row = await conn.fetchrow(_EXPECTED_CASH)
+
+    metrics = dict(metrics_row) if metrics_row else {}
+    return {
+        "date": date or "today",
+        "metrics": metrics,
+        "drawer": {
+            "open_session_id": cash_row["open_session_id"] if cash_row else None,
+            "opened_at": cash_row["opened_at"] if cash_row else None,
+            # None when no session is currently open — distinct from 0.
+            "expected_cash_in_drawer": (
+                float(cash_row["expected_cash_in_drawer"]) if cash_row else None
+            ),
+        },
+    }
+
+
+@router.get("/activity")
+async def get_recent_activity(limit: int = Query(50, ge=1, le=200)):
+    """Most recent stream of business actions across all registers."""
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT event_id, event_type, occurred_at, received_at,
+                   user_id, register_id, data
+            FROM events
+            ORDER BY occurred_at DESC
+            LIMIT $1;
+            """,
+            limit,
+        )
+    return [dict(r) for r in rows]
+
+
+@router.get("/shifts")
+async def get_recent_shifts(limit: int = Query(20, ge=1, le=100)):
+    """Register sessions reconstructed from OPENED/CLOSED event pairs.
+
+    counted_cash / expected_cash / variance are the values computed on
+    the register at closing time — the authoritative close-out record.
+    Sessions still open have NULL closing fields."""
+    pool = get_pool()
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT o.data->>'session_id'              AS session_id,
+                   o.user_id,
+                   o.register_id,
+                   (o.data->>'opening_float')::numeric AS opening_float,
+                   o.occurred_at                       AS opened_at,
+                   c.occurred_at                       AS closed_at,
+                   (c.data->>'counted_cash')::numeric  AS counted_cash,
+                   (c.data->>'expected_cash')::numeric AS expected_cash,
+                   (c.data->>'variance')::numeric      AS variance
+            FROM events o
+            LEFT JOIN events c
+                   ON c.event_type = 'REGISTER_CLOSED'
+                  AND c.data->>'session_id' = o.data->>'session_id'
+            WHERE o.event_type = 'REGISTER_OPENED'
+            ORDER BY o.occurred_at DESC
+            LIMIT $1;
+            """,
+            limit,
+        )
+    return [dict(r) for r in rows]
