@@ -8,8 +8,7 @@ the exact payload contract staged by possystem's app/pos_service.py:
 
   REGISTER_OPENED  data: session_id, opening_float
   SALE             data: transaction_id, session_id, gross_amount,
-                         payment_method ('cash' | 'debit' | 'credit' |
-                         'pix'; legacy rows may carry 'card'/'other')
+                         payment_method ('cash' | 'debit' | 'credit' | 'pix')
   REFUND           data: original_transaction_id, refund_amount, reason
                    (NOTE: no payment_method — cash-ness is resolved by
                     joining back to the original SALE event)
@@ -81,10 +80,6 @@ SELECT
     COALESCE(SUM((data->>'gross_amount')::numeric)
         FILTER (WHERE event_type = 'SALE'
                 AND data->>'payment_method' = 'pix'), 0)                AS pix_revenue,
-    -- Rows synced before the four-tender migration used these values.
-    COALESCE(SUM((data->>'gross_amount')::numeric)
-        FILTER (WHERE event_type = 'SALE'
-                AND data->>'payment_method' IN ('card', 'other')), 0)   AS legacy_revenue,
     COUNT(*) FILTER (WHERE event_type = 'REGISTER_OPENED')              AS shifts_opened,
     COUNT(*) FILTER (WHERE event_type = 'REGISTER_CLOSED')              AS shifts_closed
 FROM events

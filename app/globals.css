@@ -258,7 +258,6 @@ code {
 .split-debit  { background: var(--other); }
 .split-credit { background: var(--card-pay); }
 .split-pix    { background: #32bcad; }  /* Pix brand teal */
-.split-legacy { background: var(--muted); }
 
 .legend {
   list-style: none;
@@ -284,7 +283,6 @@ code {
 .legend-debit  { color: var(--other); }
 .legend-credit { color: var(--card-pay); }
 .legend-pix    { color: #32bcad; }
-.legend-legacy { color: var(--muted); }
 
 /* ---------- key/value ---------- */
 

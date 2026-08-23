@@ -9,8 +9,6 @@ export interface SummaryMetrics {
   debit_revenue: number;
   credit_revenue: number;
   pix_revenue: number;
-  /** Pre-migration sales stored as 'card' or 'other'. */
-  legacy_revenue: number;
   shifts_opened: number;
   shifts_closed: number;
 }

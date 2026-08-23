@@ -24,7 +24,7 @@ marks outbox rows synced — so always return 200 once durably handled.
 | event_type | data keys |
 |---|---|
 | `REGISTER_OPENED` | `session_id`, `opening_float` |
-| `SALE` | `transaction_id`, `session_id`, `gross_amount`, `payment_method` (`cash`/`debit`/`credit`/`pix`; pre-migration rows may carry `card`/`other`) |
+| `SALE` | `transaction_id`, `session_id`, `gross_amount`, `payment_method` (`cash`/`debit`/`credit`/`pix`) |
 | `REFUND` | `original_transaction_id`, `refund_amount`, `reason` — **no payment_method** |
 | `CASH_IN` / `CASH_OUT` | `adjustment_id`, `session_id`, `amount`, `reason` |
 | `REGISTER_CLOSED` | `session_id`, `counted_cash`, `expected_cash`, `variance` |
@@ -58,9 +58,7 @@ The response reports both `received` and `new_events` (post-dedup).
 4. **JSONB decoded server-side.** A jsonb codec is installed per
    connection, so `/activity` returns payload objects, not strings.
 5. **Payment split matches the register's four tenders** — cash,
-   debit, credit, PIX (plus a legacy bucket for pre-migration
-   `card`/`other` rows). The POS allows it; the blueprint only summed
-   cash/card.
+   debit, credit, PIX. The blueprint only summed cash/card.
 6. **Shift summaries added** (`GET /shifts`) using REGISTER_OPENED/
    CLOSED pairs with the register-computed variance.
 7. **CORS hardened**: wildcard origin combined with
@@ -135,7 +133,7 @@ curl -H "Authorization: Bearer $API_BEARER_TOKEN" \
           "occurred_at":"2025-01-15T10:00:00+00:00",
           "user_id":"usr_...","register_id":"reg_front_01",
           "data":{"transaction_id":"tx_...","session_id":"ses_...",
-                  "gross_amount":19.9,"payment_method":"card"}}]}' \
+                  "gross_amount":19.9,"payment_method":"credit"}}]}' \
      https://your-vps.com/api/v1/sync/events
 ```
 
