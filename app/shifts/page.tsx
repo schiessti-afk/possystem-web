@@ -1,4 +1,5 @@
 import AutoRefresh from "@/components/AutoRefresh";
+import Icon from "@/components/Icon";
 import { getShifts } from "@/lib/data";
 import { fmtMoney, fmtUtc } from "@/lib/format";
 
@@ -6,12 +7,23 @@ export const dynamic = "force-dynamic";
 
 function VarianceChip({ variance }: { variance: number | null }) {
   if (variance == null) {
-    return <span className="chip chip-open">open</span>;
+    return (
+      <span className="chip chip-open">
+        <Icon name="drawer-open" size={13} />
+        open
+      </span>
+    );
   }
   const abs = Math.abs(variance);
   const cls = abs <= 0.5 ? "chip-ok" : abs <= 2 ? "chip-warn" : "chip-bad";
+  const icon = abs <= 0.5 ? "synced" : "alert";
   const sign = variance > 0 ? "+" : "";
-  return <span className={`chip ${cls}`}>{sign}{variance.toFixed(2)}</span>;
+  return (
+    <span className={`chip ${cls}`}>
+      <Icon name={icon} size={13} />
+      {sign}{variance.toFixed(2)}
+    </span>
+  );
 }
 
 export default async function ShiftsPage() {
@@ -26,9 +38,15 @@ export default async function ShiftsPage() {
 
       <div className="card">
         {!shifts ? (
-          <div className="error">Backend unreachable.</div>
+          <div className="error">
+            <Icon name="offline" size={16} />
+            Backend unreachable.
+          </div>
         ) : shifts.length === 0 ? (
-          <div className="empty">No shifts recorded yet.</div>
+          <div className="empty">
+            <Icon name="drawer-close" size={16} />
+            No shifts recorded yet.
+          </div>
         ) : (
           <table className="table">
             <thead>

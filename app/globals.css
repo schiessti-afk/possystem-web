@@ -18,6 +18,12 @@
   box-sizing: border-box;
 }
 
+.icon {
+  flex-shrink: 0;
+  display: inline-block;
+  vertical-align: middle;
+}
+
 html,
 body {
   margin: 0;
@@ -61,12 +67,9 @@ code {
   letter-spacing: 0.02em;
 }
 
-.brand-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--good);
-  box-shadow: 0 0 10px var(--good);
+.brand-mark {
+  color: var(--good);
+  filter: drop-shadow(0 0 8px var(--good));
 }
 
 .topbar nav {
@@ -75,6 +78,9 @@ code {
 }
 
 .topbar nav a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   color: var(--muted);
   text-decoration: none;
   font-weight: 500;
@@ -157,12 +163,26 @@ code {
 }
 
 .card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   color: var(--muted);
   font-size: 12.5px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   margin-bottom: 12px;
+}
+
+.metric-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.metric-icon {
+  color: var(--muted);
 }
 
 .metric-label {
@@ -196,6 +216,9 @@ code {
 .tone-bad  .metric-value { color: var(--bad); }
 
 .error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   color: var(--bad);
   background: rgba(248, 113, 113, 0.08);
   border: 1px solid rgba(248, 113, 113, 0.35);
@@ -204,6 +227,9 @@ code {
 }
 
 .empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   color: var(--muted);
   padding: 10px 2px;
 }
@@ -254,12 +280,11 @@ code {
   font-variant-numeric: tabular-nums;
 }
 
-.dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  display: inline-block;
-}
+.legend-cash   { color: var(--cash); }
+.legend-debit  { color: var(--other); }
+.legend-credit { color: var(--card-pay); }
+.legend-pix    { color: #32bcad; }
+.legend-legacy { color: var(--muted); }
 
 /* ---------- key/value ---------- */
 
@@ -314,6 +339,9 @@ code {
 }
 
 .feed-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   margin-left: auto;
   color: var(--muted);
   font-size: 12.5px;
@@ -322,7 +350,9 @@ code {
 /* ---------- badges ---------- */
 
 .badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 11.5px;
   font-weight: 600;
   padding: 3px 9px;
@@ -376,7 +406,9 @@ code {
 }
 
 .chip {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 12px;
   font-weight: 600;
   padding: 2px 10px;

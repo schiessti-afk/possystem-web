@@ -1,4 +1,5 @@
 import EventBadge from "./EventBadge";
+import Icon from "./Icon";
 import { fmtMoney, fmtUtc } from "@/lib/format";
 import type { ActivityItem } from "@/lib/types";
 
@@ -23,6 +24,7 @@ export default function ActivityFeed({ items }: { items: ActivityItem[] }) {
   if (!items || items.length === 0) {
     return (
       <div className="empty">
+        <Icon name="sync" size={16} />
         No events yet — waiting for a register to sync.
       </div>
     );
@@ -39,6 +41,7 @@ export default function ActivityFeed({ items }: { items: ActivityItem[] }) {
             {detailOf(e) ? ` · ${detailOf(e)}` : ""}
           </span>
           <span className="feed-meta" title={`event ${e.event_id}`}>
+            <Icon name="user" size={13} />
             {e.user_id} @ {e.register_id}
           </span>
         </li>

@@ -1,3 +1,4 @@
+import Icon from "./Icon";
 import { fmtMoney, fmtUtc } from "@/lib/format";
 import type { DrawerInfo } from "@/lib/types";
 
@@ -7,7 +8,10 @@ export default function DrawerPanel({ drawer }: { drawer: DrawerInfo }) {
   if (!open) {
     return (
       <div className="card">
-        <div className="card-title">Drawer</div>
+        <div className="card-title">
+          <Icon name="drawer-close" size={16} />
+          Drawer
+        </div>
         <div className="metric-value dim">No shift open</div>
         <div className="metric-sub">
           Expected cash appears here while a register session is open.
@@ -18,7 +22,10 @@ export default function DrawerPanel({ drawer }: { drawer: DrawerInfo }) {
 
   return (
     <div className="card">
-      <div className="card-title">Drawer</div>
+      <div className="card-title">
+        <Icon name="drawer-open" size={16} />
+        Drawer
+      </div>
       <div className="metric-value">{fmtMoney(drawer.expected_cash_in_drawer)}</div>
       <div className="metric-sub">expected cash in drawer</div>
       <dl className="kv">

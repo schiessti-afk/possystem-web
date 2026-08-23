@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
+import Icon from "@/components/Icon";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -14,12 +15,18 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body>
         <header className="topbar">
           <div className="brand">
-            <span className="brand-dot" aria-hidden />
+            <Icon name="cash" size={20} className="brand-mark" />
             POS Remote
           </div>
           <nav>
-            <Link href="/">Overview</Link>
-            <Link href="/shifts">Shifts</Link>
+            <Link href="/">
+              <Icon name="wallet" size={15} />
+              Overview
+            </Link>
+            <Link href="/shifts">
+              <Icon name="drawer-open" size={15} />
+              Shifts
+            </Link>
           </nav>
         </header>
         <main className="container">{children}</main>

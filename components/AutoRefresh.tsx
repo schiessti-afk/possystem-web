@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Icon from "./Icon";
 
 const OPTIONS = [0, 15, 30, 60];
 
@@ -21,6 +22,7 @@ export default function AutoRefresh() {
 
   return (
     <label className="autorefresh">
+      <Icon name={seconds ? "sync" : "synced"} size={16} />
       Live refresh
       <select
         value={seconds}
