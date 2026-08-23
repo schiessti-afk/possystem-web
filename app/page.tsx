@@ -1,4 +1,5 @@
 import ActivityFeed from "@/components/ActivityFeed";
+import ActivityFilters from "@/components/ActivityFilters";
 import AutoRefresh from "@/components/AutoRefresh";
 import DrawerPanel from "@/components/DrawerPanel";
 import Icon from "@/components/Icon";
@@ -9,8 +10,34 @@ import { fmtInt, fmtMoney } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-export default async function OverviewPage() {
-  const [summary, activity] = await Promise.all([getSummary(), getActivity(25)]);
+const DEFAULT_LIMIT = 25;
+
+type Search = { from?: string; to?: string; limit?: string };
+
+function ymd(value?: string): string | undefined {
+  if (!value) return undefined;
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : undefined;
+}
+
+function clampLimit(value?: string): number {
+  const n = Number.parseInt(value ?? "", 10);
+  if (!Number.isFinite(n)) return DEFAULT_LIMIT;
+  return Math.min(200, Math.max(1, n));
+}
+
+export default async function OverviewPage({
+  searchParams,
+}: {
+  searchParams: Search;
+}) {
+  const from = ymd(searchParams.from);
+  const to = ymd(searchParams.to);
+  const limit = clampLimit(searchParams.limit);
+  const filtered = Boolean(from || to);
+  const [summary, activity] = await Promise.all([
+    getSummary(),
+    getActivity({ limit, from, to }),
+  ]);
 
   return (
     <>
@@ -63,12 +90,15 @@ export default async function OverviewPage() {
       )}
 
       <section className="card">
-        <div className="card-title">
-          <Icon name="receipt" size={16} />
-          Recent activity
+        <div className="card-head">
+          <div className="card-title">
+            <Icon name="receipt" size={16} />
+            Recent activity
+          </div>
+          <ActivityFilters from={from} to={to} limit={limit} />
         </div>
         {activity ? (
-          <ActivityFeed items={activity} />
+          <ActivityFeed items={activity} filtered={filtered} />
         ) : (
           <div className="error">
             <Icon name="offline" size={16} />

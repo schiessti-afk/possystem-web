@@ -20,12 +20,20 @@ function detailOf(e: ActivityItem): string | null {
   return null;
 }
 
-export default function ActivityFeed({ items }: { items: ActivityItem[] }) {
+export default function ActivityFeed({
+  items,
+  filtered = false,
+}: {
+  items: ActivityItem[];
+  filtered?: boolean;
+}) {
   if (!items || items.length === 0) {
     return (
       <div className="empty">
         <Icon name="sync" size={16} />
-        No events yet — waiting for a register to sync.
+        {filtered
+          ? "No events in this date range."
+          : "No events yet — waiting for a register to sync."}
       </div>
     );
   }

@@ -14,8 +14,16 @@ export function getSummary(): Promise<SummaryResponse | null> {
   return safe(backendGet<SummaryResponse>("/api/v1/dashboard/summary"));
 }
 
-export function getActivity(limit = 25): Promise<ActivityItem[] | null> {
-  return safe(backendGet<ActivityItem[]>(`/api/v1/dashboard/activity?limit=${limit}`));
+export function getActivity(opts: {
+  limit?: number;
+  from?: string;
+  to?: string;
+} = {}): Promise<ActivityItem[] | null> {
+  const params = new URLSearchParams();
+  params.set("limit", String(opts.limit ?? 25));
+  if (opts.from) params.set("from", opts.from);
+  if (opts.to) params.set("to", opts.to);
+  return safe(backendGet<ActivityItem[]>(`/api/v1/dashboard/activity?${params}`));
 }
 
 export function getShifts(limit = 50): Promise<ShiftRow[] | null> {

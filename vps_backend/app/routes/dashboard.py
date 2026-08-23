@@ -183,8 +183,21 @@ async def get_summary_metrics(date: Optional[str] = None):
 
 
 @router.get("/activity")
-async def get_recent_activity(limit: int = Query(50, ge=1, le=200)):
-    """Most recent stream of business actions across all registers."""
+async def get_recent_activity(
+    limit: int = Query(50, ge=1, le=200),
+    date_from: Optional[str] = Query(None, alias="from"),
+    date_to: Optional[str] = Query(None, alias="to"),
+):
+    """Most recent stream of business actions across all registers.
+
+    Optional `from` / `to` (YYYY-MM-DD) bound `occurred_at` inclusively.
+    If both are set and inverted, they are swapped.
+    """
+    start = _parse_date_or_422(date_from)
+    end = _parse_date_or_422(date_to)
+    if start and end and start > end:
+        start, end = end, start
+
     pool = get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
@@ -192,10 +205,14 @@ async def get_recent_activity(limit: int = Query(50, ge=1, le=200)):
             SELECT event_id, event_type, occurred_at, received_at,
                    user_id, register_id, data
             FROM events
+            WHERE ($2::date IS NULL OR occurred_at::date >= $2::date)
+              AND ($3::date IS NULL OR occurred_at::date <= $3::date)
             ORDER BY occurred_at DESC
             LIMIT $1;
             """,
             limit,
+            start,
+            end,
         )
     return [dict(r) for r in rows]
 
