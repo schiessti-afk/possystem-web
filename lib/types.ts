@@ -6,8 +6,11 @@ export interface SummaryMetrics {
   net_revenue: number;
   total_sales_count: number;
   cash_revenue: number;
-  card_revenue: number;
-  other_revenue: number;
+  debit_revenue: number;
+  credit_revenue: number;
+  pix_revenue: number;
+  /** Pre-migration sales stored as 'card' or 'other'. */
+  legacy_revenue: number;
   shifts_opened: number;
   shifts_closed: number;
 }

@@ -54,7 +54,7 @@ def main() -> int:
                 "gross_amount": 25.5, "payment_method": "cash"}),
             ev("SALE", 20, "user_smoke",
                {"transaction_id": f"tx_{uuid4().hex[:16]}", "session_id": session,
-                "gross_amount": 40.0, "payment_method": "card"}),
+                "gross_amount": 40.0, "payment_method": "pix"}),
         ]
     }
     cash_tx = batch["events"][1]["data"]["transaction_id"]

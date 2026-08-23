@@ -228,9 +228,11 @@ code {
   height: 100%;
 }
 
-.split-cash  { background: var(--cash); }
-.split-card  { background: var(--card-pay); }
-.split-other { background: var(--other); }
+.split-cash   { background: var(--cash); }
+.split-debit  { background: var(--other); }
+.split-credit { background: var(--card-pay); }
+.split-pix    { background: #32bcad; }  /* Pix brand teal */
+.split-legacy { background: var(--muted); }
 
 .legend {
   list-style: none;
