@@ -443,8 +443,18 @@ code {
 
 /* ---------- shifts table ---------- */
 
+/* The table is wider than the card on narrow viewports; scroll it inside the
+   card instead of letting cells bleed past the rounded edge. */
+.table-scroll {
+  overflow-x: auto;
+  margin: 0 -20px;
+  padding: 0 20px;
+  overscroll-behavior-x: contain;
+}
+
 .table {
   width: 100%;
+  min-width: 900px;
   border-collapse: collapse;
   font-size: 13.5px;
 }
@@ -456,12 +466,12 @@ code {
   font-size: 12px;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  padding: 8px 10px;
+  padding: 8px 8px;
   border-bottom: 1px solid var(--card-edge);
 }
 
 .table td {
-  padding: 9px 10px;
+  padding: 9px 8px;
   border-bottom: 1px solid var(--bg-soft);
   font-variant-numeric: tabular-nums;
 }
@@ -472,6 +482,51 @@ code {
 
 .table .num {
   text-align: right;
+}
+
+.table th,
+.table td {
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* Long opaque ids truncate rather than stretching the row; full value on hover. */
+.cell-id {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cell-id code {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+}
+
+.cell-user {
+  color: var(--muted);
+}
+
+/* Date over time keeps the timestamp columns narrow and evenly aligned. */
+.stamp {
+  display: inline-flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+
+.stamp-time {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.cell-variance {
+  text-align: right;
+}
+
+.dash {
+  color: var(--muted);
 }
 
 .row-open {

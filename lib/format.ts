@@ -24,3 +24,12 @@ export function fmtUtc(iso: string | null | undefined): string {
   const s = d.toISOString();
   return `${s.slice(0, 10)} ${s.slice(11, 19)} UTC`;
 }
+
+/** Same instant as fmtUtc, split so the table can stack date over time. */
+export function fmtUtcParts(iso: string | null | undefined): { date: string; time: string } | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return { date: iso, time: "" };
+  const s = d.toISOString();
+  return { date: s.slice(0, 10), time: `${s.slice(11, 19)} UTC` };
+}
