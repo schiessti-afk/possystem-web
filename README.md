@@ -19,11 +19,69 @@ possystem-web/
 └── vps_backend/            # Ingestion & analytics service (see its README)
 ```
 
-## Architecture in one line
+## How the two repos interconnect — and why
 
-Registers POST events → `vps_backend` stores them idempotently in
-PostgreSQL → this dashboard reads aggregates server-side with an API
-key that never reaches the browser.
+`possystem` (the register, in `C:\projects\possystem`) and this repo
+(the observation layer) are deliberately separate applications with
+opposite network postures. They share no code and no database; the only
+coupling is the event contract.
+
+```
+┌───────────────────────── SHOP (possystem) ────────────────────────┐
+│ register action: sale / refund / drawer / PIX tender               │
+│   └─ ONE SQLite transaction: business row + sync_outbox row        │
+│        └─ sync worker drains outbox (batches ≤50, backoff retry)   │
+└────────────────────────┬───────────────────────────────────────────┘
+                         │ HTTPS POST /api/v1/sync/events
+                         │ Authorization: Bearer <shared token>
+                         ▼
+┌──────────────── THIS REPO (possystem-web) ─────────────────────────┐
+│ vps_backend (FastAPI) → append-only events log (PostgreSQL)        │
+│     ON CONFLICT (event_id) DO NOTHING  ← retries can't double-count│
+│          ▲ read-only aggregates, X-API-Key or admin session        │
+│ Next.js dashboard — owner's browser (server-held secrets only)     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+Per business action on the register:
+
+1. The sale/refund/adjustment row **and** its sync event are committed
+   in one SQLite transaction (transactional outbox), so a state change
+   and its audit trail can never diverge.
+2. The register's background worker batches queued events and POSTs
+   them; HTTP 200 marks them synced. Any failure keeps them queued with
+   exponential backoff — the shop sells straight through outages.
+3. The backend stores immutable raw events keyed by ULID; duplicates
+   are dropped on conflict, making at-least-once delivery safe.
+4. The dashboard renders aggregates fetched **server-side**; browsers
+   never hold the API key, and nothing ever flows back toward shops.
+
+Why split into two repos with this shape:
+
+- **One-way trust.** Data flows shop → VPS only. A compromised VPS
+  cannot push prices, void sales, or open a drawer — registers accept
+  no inbound instructions at all.
+- **Offline-first retail vs. always-on analytics have different
+  needs.** The counter PC runs stdlib-only Python on whatever hardware
+  exists at the till; this repo wants Node, PostgreSQL and Docker.
+  Separate repos keep runtimes, deployment targets, credentials and
+  blast radius apart.
+- **Raw event log over pre-aggregates.** New analytics (shift
+  summaries, drawer expectations, the four-tender payment split)
+  shipped without touching register code, and the log doubles as an
+  off-site audit trail.
+
+Pairing points:
+
+| possystem side | this repo side | meaning |
+|---|---|---|
+| `VPS_SYNC_URL` | `backend` service, `/api/v1/sync/events` | where events go |
+| `POS_API_TOKEN` | `API_BEARER_TOKEN` | must be identical |
+| `REGISTER_ID` | `events.register_id` column | which till sent what |
+| tenders `cash/debit/credit/pix` | `payment_method` buckets in `/summary` | revenue split |
+| drawer-gate sangria/suprimento | `CASH_OUT` / `CASH_IN` events | reconciliation trail |
+
+Full wire contract: see `vps_backend/README.md`.
 
 ## Quickstart (local, three terminals)
 
