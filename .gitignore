@@ -18,3 +18,10 @@ venv/
 # OS noise
 Thumbs.db
 .DS_Store
+
+# Production secrets (docker-compose.prod.yml)
+.env.prod
+
+# Caddy state
+caddy_data/
+caddy_config/

@@ -179,6 +179,35 @@ Full step-by-step: [`vps_backend/README.md`](vps_backend/README.md).
 
 </details>
 
+<details>
+<summary><strong>All-in-one VPS stack</strong> (Docker + Caddy + DuckDNS)</summary>
+
+Runs UI, backend and Postgres on a single host with automatic HTTPS. No paid
+domain required: a free [DuckDNS](https://www.duckdns.org) subdomain is enough
+for Let's Encrypt to issue a certificate.
+
+1. Create the DuckDNS subdomain and point it at the VPS IP.
+2. `cp .env.prod.example .env.prod`, then fill in every value
+   (`openssl rand -hex 32` for the secrets). Mirror `API_BEARER_TOKEN` into
+   each register's `POS_API_TOKEN`.
+3. Open ports 80 and 443 in the firewall — and only those.
+4. Build and start:
+
+   ```
+   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+   ```
+
+5. Create the admin account:
+   `docker compose -f docker-compose.prod.yml exec backend python scripts/onboard.py`
+
+Caddy publishes the dashboard at `https://$SITE_DOMAIN` and forwards only
+`/api/v1/sync/*` to the backend, so registers can push events while the
+analytics endpoints stay on the internal network. `BACKEND_URL` is
+`http://backend:8000` — the dashboard API key never crosses the internet.
+Back up the `pgdata` volume; it holds the entire event log.
+
+</details>
+
 ## Known limits
 
 - Business-day metrics use the database timezone (UTC in the default

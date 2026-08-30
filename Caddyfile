@@ -1,0 +1,26 @@
+# Public edge for the production stack.
+#
+# {$SITE_DOMAIN} is your DuckDNS hostname (e.g. mypos.duckdns.org) and
+# {$ACME_EMAIL} is where Let's Encrypt sends expiry warnings; both come from
+# the compose environment. Caddy obtains and renews the certificate on its
+# own — nothing else in the stack publishes a port.
+{
+	email {$ACME_EMAIL}
+}
+
+{$SITE_DOMAIN} {
+	encode gzip
+
+	# Registers push their event log here; this is the only backend surface
+	# that has to be public, and it is guarded by API_BEARER_TOKEN.
+	handle /api/v1/sync/* {
+		reverse_proxy backend:8000
+	}
+
+	# Everything else is the dashboard UI. The analytics endpoints stay on
+	# the internal compose network only, so DASHBOARD_API_KEY never crosses
+	# the public internet.
+	handle {
+		reverse_proxy web:3000
+	}
+}

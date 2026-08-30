@@ -1,0 +1,11 @@
+node_modules
+.next
+.npm-cache
+.git
+.env
+.env*.local
+.env.prod
+vps_backend
+caddy_data
+caddy_config
+*.tsbuildinfo
