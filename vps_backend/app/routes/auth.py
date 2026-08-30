@@ -13,11 +13,12 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 
 from app.config import settings
 from app.database import get_pool
 from app.models import LoginRequest, TokenResponse
+from app.rate_limit import client_key, record, reset, retry_after
 from app.security import hash_password, hash_token, new_session_token, verify_password
 
 router = APIRouter(prefix="/api/v1/auth", tags=["Auth"])
@@ -34,7 +35,20 @@ def _dummy_hash() -> str:
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(payload: LoginRequest) -> TokenResponse:
+async def login(payload: LoginRequest, request: Request) -> TokenResponse:
+    # Guessing is bounded per source address. The check runs before any
+    # database or scrypt work, so a flood costs the server almost nothing.
+    caller = client_key(request)
+    wait = retry_after(
+        caller, settings.LOGIN_MAX_ATTEMPTS, settings.LOGIN_WINDOW_SECONDS
+    )
+    if wait is not None:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many login attempts. Try again later.",
+            headers={"Retry-After": str(wait)},
+        )
+
     pool = get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -48,12 +62,17 @@ async def login(payload: LoginRequest) -> TokenResponse:
             if not stored:
                 # Unknown user: burn the same scrypt cost anyway.
                 verify_password(payload.password, _dummy_hash())
+            record(caller)
             # Blunt brute-force damping.
             await asyncio.sleep(0.4)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid credentials",
             )
+
+        # Correct password: this caller is not an attacker, so their earlier
+        # typos must not count against the next sign-in.
+        reset(caller)
 
         raw_token, token_hash = new_session_token()
         expires_at = datetime.now(timezone.utc) + timedelta(

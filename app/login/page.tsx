@@ -8,6 +8,7 @@ const MESSAGES: Record<string, string> = {
   missing: "Enter a username and password.",
   expired: "Session expired — sign in again.",
   offline: "Backend unreachable — try again shortly.",
+  throttled: "Too many attempts. Wait a few minutes and try again.",
 };
 
 /** Own-property lookup only: ?error=constructor must not reach the prototype. */

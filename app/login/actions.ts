@@ -29,8 +29,9 @@ export async function login(formData: FormData): Promise<void> {
   if (failure || !token) {
     // The backend damps brute force and equalizes timing; it does not say
     // whether the username or the password was wrong, and neither do we.
-    const offline = failure instanceof BackendError && failure.status === 503;
-    redirect(offline ? "/login?error=offline" : "/login?error=invalid");
+    const status = failure instanceof BackendError ? failure.status : 0;
+    if (status === 429) redirect("/login?error=throttled");
+    redirect(status === 503 ? "/login?error=offline" : "/login?error=invalid");
   }
 
   setSessionCookie(token.access_token, token.expires_at);

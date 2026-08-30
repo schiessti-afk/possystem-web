@@ -140,6 +140,8 @@ requests are rejected.
 | `API_BEARER_TOKEN` | backend **and** register | shared ingestion secret — must match |
 | `DASHBOARD_API_KEY` | backend only | server-to-server owner key (`X-API-Key`); the UI does not use it |
 | `SESSION_TTL_HOURS` | backend | admin login session lifetime (default 24) |
+| `LOGIN_MAX_ATTEMPTS` | backend | failed logins per client address per window (default 8) |
+| `LOGIN_WINDOW_SECONDS` | backend | rate-limit window for the above (default 300) |
 | `MAX_BATCH_EVENTS` | backend | ingestion batch cap (default 200) |
 | `BACKEND_URL` | frontend | backend base URL for server-side fetches |
 | `DASHBOARD_ALLOWED_ORIGINS` | backend | CORS origins for direct browser calls |
@@ -156,6 +158,13 @@ requests are rejected.
   rendered HTML and refresh triggers only.
 - Admin passwords are scrypt-hashed (stdlib, memory-hard); login issues opaque
   bearer sessions stored only as SHA-256 digests. `--reset` revokes sessions.
+- Login is rate limited per client address (`app/rate_limit.py`), before any
+  database or scrypt work. A correct password clears that client's count.
+  Behind a proxy the address is the **rightmost** `X-Forwarded-For` entry — the
+  one the proxy itself observed — so prepending forged values does not buy an
+  attacker extra attempts. The nginx deployment adds a second limiter at the
+  edge; Caddy cannot, since its `rate_limit` is a plugin missing from the
+  official image, which is precisely why the limit lives in the application.
 - Dev credentials intentionally match possystem defaults so pairing is
   zero-config locally — replace them with strong random values on both sides
   before exposing anything publicly (`python -c "import secrets; print(secrets.token_hex(32))"`).

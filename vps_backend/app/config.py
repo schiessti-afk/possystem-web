@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     # Admin login sessions (POST /api/v1/auth/login) live this long.
     SESSION_TTL_HOURS: int = 24
 
+    # Failed logins allowed per client address inside the window before
+    # /api/v1/auth/login answers 429. A successful login clears the count.
+    LOGIN_MAX_ATTEMPTS: int = 8
+    LOGIN_WINDOW_SECONDS: int = 300
+
     PORT: int = 8000
 
     @property
