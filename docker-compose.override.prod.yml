@@ -1,0 +1,20 @@
+# Host-specific override for a VPS where nginx already owns ports 80/443.
+#
+#   docker compose -f docker-compose.prod.yml -f docker-compose.override.prod.yml \
+#     --env-file .env.prod up -d --build
+#
+# Caddy is parked behind an unused profile so it never starts and never fights
+# nginx for the public ports. Instead nginx terminates TLS (certbot) and
+# proxies to the two loopback ports below — nothing here is reachable from
+# outside the host.
+services:
+  caddy:
+    profiles: ["unused"]
+
+  web:
+    ports:
+      - "127.0.0.1:3010:3000"
+
+  backend:
+    ports:
+      - "127.0.0.1:8010:8000"

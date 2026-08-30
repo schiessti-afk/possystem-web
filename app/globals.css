@@ -74,7 +74,25 @@ code {
 
 .topbar nav {
   display: flex;
+  align-items: center;
   gap: 18px;
+}
+
+.topbar nav .logout {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.topbar nav .logout:hover {
+  color: var(--text);
 }
 
 .topbar nav a {
@@ -547,3 +565,74 @@ code {
 .chip-warn { color: var(--warn); background: rgba(251, 191, 36, 0.12); }
 .chip-bad  { color: var(--bad);  background: rgba(248, 113, 113, 0.12); }
 .chip-open { color: var(--card-pay); background: rgba(79, 140, 255, 0.12); }
+
+/* ---------- login ---------- */
+
+.login-wrap {
+  display: flex;
+  justify-content: center;
+  padding-top: 6vh;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.login-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.login-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.login-card input {
+  background: var(--bg-soft);
+  border: 1px solid var(--card-edge);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 9px 10px;
+  font: inherit;
+  color-scheme: dark;
+}
+
+.login-card input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.login-card button {
+  margin-top: 4px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.login-card button:hover {
+  filter: brightness(1.08);
+}
+
+.login-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--bad);
+  font-size: 13px;
+}

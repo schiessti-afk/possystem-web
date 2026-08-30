@@ -1,13 +1,24 @@
-import { backendGet } from "./backend";
+import { redirect } from "next/navigation";
+import { BackendError, backendGet } from "./backend";
 import type { ActivityItem, ShiftRow, SummaryResponse } from "./types";
 
-/** Resolve to null on any failure so pages can render a friendly card. */
+/**
+ * Resolve to null on any failure so pages can render a friendly card — except
+ * an expired or invalid session, which sends the visitor back to the login
+ * screen. redirect() is called outside the catch because it signals by
+ * throwing, and this catch would otherwise swallow it.
+ */
 async function safe<T>(p: Promise<T>): Promise<T | null> {
+  let error: unknown;
   try {
     return await p;
-  } catch {
-    return null;
+  } catch (e) {
+    error = e;
   }
+  if (error instanceof BackendError && error.status === 401) {
+    redirect("/login?error=expired");
+  }
+  return null;
 }
 
 export function getSummary(

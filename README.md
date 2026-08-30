@@ -138,7 +138,7 @@ requests are rejected.
 |---|---|---|
 | `DATABASE_URL` | backend | asyncpg DSN (compose default: `db:5432` internal) |
 | `API_BEARER_TOKEN` | backend **and** register | shared ingestion secret — must match |
-| `DASHBOARD_API_KEY` | backend **and** `.env.local` | owner key sent as `X-API-Key` |
+| `DASHBOARD_API_KEY` | backend only | server-to-server owner key (`X-API-Key`); the UI does not use it |
 | `SESSION_TTL_HOURS` | backend | admin login session lifetime (default 24) |
 | `MAX_BATCH_EVENTS` | backend | ingestion batch cap (default 200) |
 | `BACKEND_URL` | frontend | backend base URL for server-side fetches |
@@ -146,9 +146,14 @@ requests are rejected.
 
 ## Security model
 
+- The dashboard requires a sign-in. `/login` exchanges an admin password for a
+  session token kept in an **httpOnly** cookie; `middleware.ts` bounces
+  anonymous visitors, and every backend call then carries that token as a
+  bearer credential, so a forged cookie is rejected by the backend rather than
+  trusted by the UI.
 - All backend calls happen inside React **Server Components**
-  (`lib/backend.ts`). `DASHBOARD_API_KEY` lives only server-side — the browser
-  receives rendered HTML and refresh triggers, never keys.
+  (`lib/backend.ts`). No key or token is ever sent to the browser — it receives
+  rendered HTML and refresh triggers only.
 - Admin passwords are scrypt-hashed (stdlib, memory-hard); login issues opaque
   bearer sessions stored only as SHA-256 digests. `--reset` revokes sessions.
 - Dev credentials intentionally match possystem defaults so pairing is
@@ -172,8 +177,8 @@ requests are rejected.
    then Caddy: `your-vps-domain.com { reverse_proxy 127.0.0.1:8000 }`.
 5. Run `python scripts/onboard.py` to create the admin account.
 6. Deploy this Next.js app (`npm run build && npm start`, or a standalone
-   container) with `BACKEND_URL=https://your-vps-domain.com` and the production
-   `DASHBOARD_API_KEY`.
+   container) with `BACKEND_URL=https://your-vps-domain.com`, then sign in at
+   `/login` with the account from step 5.
 
 Full step-by-step: [`vps_backend/README.md`](vps_backend/README.md).
 
@@ -197,7 +202,7 @@ for Let's Encrypt to issue a certificate.
    docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
    ```
 
-5. Create the admin account:
+5. Create the admin account — the dashboard is unusable until one exists:
    `docker compose -f docker-compose.prod.yml exec backend python scripts/onboard.py`
 
 Caddy publishes the dashboard at `https://$SITE_DOMAIN` and forwards only

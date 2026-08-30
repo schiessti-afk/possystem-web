@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import Icon from "@/components/Icon";
+import { logout } from "./login/actions";
+import { getSessionToken } from "@/lib/session";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -10,6 +12,10 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
+  // Navigation is pointless before sign-in, and the login screen is the one
+  // page rendered without a session.
+  const signedIn = Boolean(getSessionToken());
+
   return (
     <html lang="en">
       <body>
@@ -18,16 +24,24 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <Icon name="cash" size={20} className="brand-mark" />
             POS Remote
           </div>
-          <nav>
-            <Link href="/">
-              <Icon name="wallet" size={15} />
-              Overview
-            </Link>
-            <Link href="/shifts">
-              <Icon name="drawer-open" size={15} />
-              Shifts
-            </Link>
-          </nav>
+          {signedIn ? (
+            <nav>
+              <Link href="/">
+                <Icon name="wallet" size={15} />
+                Overview
+              </Link>
+              <Link href="/shifts">
+                <Icon name="drawer-open" size={15} />
+                Shifts
+              </Link>
+              <form action={logout}>
+                <button type="submit" className="logout">
+                  <Icon name="offline" size={15} />
+                  Sign out
+                </button>
+              </form>
+            </nav>
+          ) : null}
         </header>
         <main className="container">{children}</main>
         <footer className="footer">

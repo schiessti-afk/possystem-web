@@ -57,8 +57,9 @@ services:
     restart: unless-stopped
     environment:
       # Internal service name: this hop never leaves the Docker network.
+      # No API key here — the UI authenticates as the signed-in admin, using
+      # the session token from their login cookie.
       BACKEND_URL: http://backend:8000
-      DASHBOARD_API_KEY: ${DASHBOARD_API_KEY}
     depends_on:
       backend:
         condition: service_healthy

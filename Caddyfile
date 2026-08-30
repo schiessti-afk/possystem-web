@@ -11,6 +11,17 @@
 {$SITE_DOMAIN} {
 	encode gzip
 
+	header {
+		# Caddy already redirects http->https; HSTS stops the first-hop
+		# downgrade on later visits.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		# The dashboard is never meant to be framed.
+		Content-Security-Policy "frame-ancestors 'none'"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "same-origin"
+		-Server
+	}
+
 	# Registers push their event log here; this is the only backend surface
 	# that has to be public, and it is guarded by API_BEARER_TOKEN.
 	handle /api/v1/sync/* {
