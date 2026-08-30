@@ -2,6 +2,8 @@
 
 export interface SummaryMetrics {
   total_revenue: number;
+  /** Gross for the current calendar month, regardless of the window. */
+  month_revenue: number;
   total_refunds: number;
   net_revenue: number;
   total_sales_count: number;
@@ -11,6 +13,10 @@ export interface SummaryMetrics {
   pix_revenue: number;
   shifts_opened: number;
   shifts_closed: number;
+  /** First REGISTER_OPENED in the window; null if nobody logged in. */
+  first_login_at: string | null;
+  /** Last REGISTER_CLOSED in the window; null while every shift is open. */
+  last_logout_at: string | null;
 }
 
 export interface DrawerInfo {
@@ -21,6 +27,8 @@ export interface DrawerInfo {
 
 export interface SummaryResponse {
   date: string;
+  from: string | null;
+  to: string | null;
   metrics: SummaryMetrics;
   drawer: DrawerInfo;
 }

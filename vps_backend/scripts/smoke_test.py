@@ -55,6 +55,13 @@ def main() -> int:
             ev("SALE", 20, "user_smoke",
                {"transaction_id": f"tx_{uuid4().hex[:16]}", "session_id": session,
                 "gross_amount": 40.0, "payment_method": "pix"}),
+            # Register v1.3+ closes carry an additive Z-report summary.
+            ev("REGISTER_CLOSED", 30, "user_smoke",
+               {"session_id": session, "counted_cash": 85.5,
+                "expected_cash": 85.5, "variance": 0.0,
+                "sales_count": 2, "refunded_count": 0,
+                "tender_totals": {"cash": 25.5, "pix": 40.0},
+                "cash_in_total": 0.0, "cash_out_total": 40.0}),
         ]
     }
     cash_tx = batch["events"][1]["data"]["transaction_id"]
@@ -74,6 +81,11 @@ def main() -> int:
     status_, body = call(base, dash_key, "/api/v1/dashboard/shifts?limit=3",
                          header_name="X-API-Key")
     print(f"shifts -> {status_} {json.dumps(body[:1], indent=2)}")
+    mine = next((s for s in body if s.get("session_id") == session), None)
+    assert mine is not None, "smoke shift missing from /shifts"
+    assert mine.get("tender_totals") == {"cash": 25.5, "pix": 40.0}, mine
+    assert mine.get("sales_count") == 2 and mine.get("cash_out_total") == 40.0, mine
+    print("Z-report summary round-tripped through /shifts OK")
 
     try:
         call(base, "", "/api/v1/dashboard/summary")

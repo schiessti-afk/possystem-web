@@ -10,8 +10,18 @@ async function safe<T>(p: Promise<T>): Promise<T | null> {
   }
 }
 
-export function getSummary(): Promise<SummaryResponse | null> {
-  return safe(backendGet<SummaryResponse>("/api/v1/dashboard/summary"));
+export function getSummary(
+  opts: { from?: string; to?: string } = {},
+): Promise<SummaryResponse | null> {
+  const params = new URLSearchParams();
+  if (opts.from) params.set("from", opts.from);
+  if (opts.to) params.set("to", opts.to);
+  const qs = params.toString();
+  return safe(
+    backendGet<SummaryResponse>(
+      `/api/v1/dashboard/summary${qs ? `?${qs}` : ""}`,
+    ),
+  );
 }
 
 export function getActivity(opts: {

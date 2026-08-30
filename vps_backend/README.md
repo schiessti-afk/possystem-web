@@ -27,7 +27,11 @@ marks outbox rows synced — so always return 200 once durably handled.
 | `SALE` | `transaction_id`, `session_id`, `gross_amount`, `payment_method` (`cash`/`debit`/`credit`/`pix`) |
 | `REFUND` | `original_transaction_id`, `refund_amount`, `reason` — **no payment_method** |
 | `CASH_IN` / `CASH_OUT` | `adjustment_id`, `session_id`, `amount`, `reason` |
-| `REGISTER_CLOSED` | `session_id`, `counted_cash`, `expected_cash`, `variance` |
+| `REGISTER_CLOSED` | `session_id`, `counted_cash`, `expected_cash`, `variance` + optional Z-report summary since register v1.3: `sales_count`, `refunded_count`, `tender_totals` (`{method: reais}`), `cash_in_total`, `cash_out_total` — older closes simply lack these keys, and `/shifts` returns NULL for them |
+
+All monetary values travel as reais with exactly 2 decimal places: the
+register computes internally in integer cents and converts only at the
+wire boundary.
 
 Envelope per event: `event_id` (ULID), `event_type`, `occurred_at`
 (ISO-8601 UTC), `user_id`, `register_id`, `data`.

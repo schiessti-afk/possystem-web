@@ -15,6 +15,13 @@ the exact payload contract staged by possystem's app/pos_service.py:
   CASH_IN/OUT      data: adjustment_id, session_id, amount, reason
   REGISTER_CLOSED  data: session_id, counted_cash, expected_cash,
                          variance
+                         + Z-report summary since register v1.3
+                         (ALL OPTIONAL — older closes lack them):
+                         sales_count, refunded_count, tender_totals
+                         {method: reais}, cash_in_total, cash_out_total.
+                         Amounts arrive as reais with exactly 2 decimals:
+                         the register computes in integer cents and
+                         converts only at the wire boundary.
 """
 import secrets
 from datetime import datetime
@@ -81,9 +88,23 @@ SELECT
         FILTER (WHERE event_type = 'SALE'
                 AND data->>'payment_method' = 'pix'), 0)                AS pix_revenue,
     COUNT(*) FILTER (WHERE event_type = 'REGISTER_OPENED')              AS shifts_opened,
-    COUNT(*) FILTER (WHERE event_type = 'REGISTER_CLOSED')              AS shifts_closed
+    COUNT(*) FILTER (WHERE event_type = 'REGISTER_CLOSED')              AS shifts_closed,
+    MIN(occurred_at) FILTER (WHERE event_type = 'REGISTER_OPENED')      AS first_login_at,
+    MAX(occurred_at) FILTER (WHERE event_type = 'REGISTER_CLOSED')      AS last_logout_at
 FROM events
-WHERE occurred_at::date = COALESCE($1::date, CURRENT_DATE);
+WHERE occurred_at::date >= COALESCE($1::date, $2::date, CURRENT_DATE)
+  AND occurred_at::date <= COALESCE($2::date, $1::date, CURRENT_DATE);
+"""
+
+# Gross revenue for the calendar month we are actually in. Deliberately
+# independent of the summary window: the owner wants the running month
+# total next to the day (or filtered) figure, not a second copy of it.
+_MONTH_REVENUE = """
+SELECT COALESCE(SUM((data->>'gross_amount')::numeric)
+    FILTER (WHERE event_type = 'SALE'), 0) AS month_revenue
+FROM events
+WHERE occurred_at >= date_trunc('month', CURRENT_DATE)
+  AND occurred_at < date_trunc('month', CURRENT_DATE) + interval '1 month';
 """
 
 # Expected physical cash for the most recent still-open register session.
@@ -158,18 +179,38 @@ def _parse_date_or_422(date: Optional[str]) -> Optional[datetime.date]:
 
 
 @router.get("/summary")
-async def get_summary_metrics(date: Optional[str] = None):
-    """Revenue, refund and payment-split metrics for one business day
-    (default: today), plus expected cash in the currently open drawer."""
-    day = _parse_date_or_422(date)
+async def get_summary_metrics(
+    date: Optional[str] = None,
+    date_from: Optional[str] = Query(None, alias="from"),
+    date_to: Optional[str] = Query(None, alias="to"),
+):
+    """Revenue, refund and payment-split metrics, plus expected cash in
+    the currently open drawer.
+
+    The window defaults to today. `from` / `to` (YYYY-MM-DD) widen it to
+    an inclusive range — passing only one bounds that side and pins the
+    other to the same day. `date` is the legacy single-day alias.
+    If `from` and `to` are inverted, they are swapped.
+
+    `month_revenue` always covers the current calendar month, whatever
+    the requested window is.
+    """
+    start = _parse_date_or_422(date_from) or _parse_date_or_422(date)
+    end = _parse_date_or_422(date_to) or _parse_date_or_422(date)
+    if start and end and start > end:
+        start, end = end, start
     pool = get_pool()
     async with pool.acquire() as conn:
-        metrics_row = await conn.fetchrow(_SUMMARY_METRICS, day)
+        metrics_row = await conn.fetchrow(_SUMMARY_METRICS, start, end)
+        month_row = await conn.fetchrow(_MONTH_REVENUE)
         cash_row = await conn.fetchrow(_EXPECTED_CASH)
 
     metrics = dict(metrics_row) if metrics_row else {}
+    metrics["month_revenue"] = month_row["month_revenue"] if month_row else 0
     return {
         "date": date or "today",
+        "from": start.isoformat() if start else None,
+        "to": end.isoformat() if end else None,
         "metrics": metrics,
         "drawer": {
             "open_session_id": cash_row["open_session_id"] if cash_row else None,
@@ -223,7 +264,12 @@ async def get_recent_shifts(limit: int = Query(20, ge=1, le=100)):
 
     counted_cash / expected_cash / variance are the values computed on
     the register at closing time — the authoritative close-out record.
-    Sessions still open have NULL closing fields."""
+    Sessions still open have NULL closing fields.
+
+    When the register closed with v1.3+ firmware, the Z-report summary
+    (sales_count, refunded_count, tender_totals, cash_in_total,
+    cash_out_total) is included too; older closes return NULL there.
+    """
     pool = get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
@@ -236,7 +282,13 @@ async def get_recent_shifts(limit: int = Query(20, ge=1, le=100)):
                    c.occurred_at                       AS closed_at,
                    (c.data->>'counted_cash')::numeric  AS counted_cash,
                    (c.data->>'expected_cash')::numeric AS expected_cash,
-                   (c.data->>'variance')::numeric      AS variance
+                   (c.data->>'variance')::numeric      AS variance,
+                   -- Z-report summary (optional since register v1.3):
+                   (c.data->>'sales_count')::int       AS sales_count,
+                   (c.data->>'refunded_count')::int    AS refunded_count,
+                   c.data->'tender_totals'             AS tender_totals,
+                   (c.data->>'cash_in_total')::numeric AS cash_in_total,
+                   (c.data->>'cash_out_total')::numeric AS cash_out_total
             FROM events o
             LEFT JOIN events c
                    ON c.event_type = 'REGISTER_CLOSED'

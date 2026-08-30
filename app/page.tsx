@@ -6,7 +6,7 @@ import Icon from "@/components/Icon";
 import MetricCard from "@/components/MetricCard";
 import PaymentSplit from "@/components/PaymentSplit";
 import { getActivity, getSummary } from "@/lib/data";
-import { fmtInt, fmtMoney } from "@/lib/format";
+import { fmtInt, fmtMoney, fmtUtc } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +17,20 @@ type Search = { from?: string; to?: string; limit?: string };
 function ymd(value?: string): string | undefined {
   if (!value) return undefined;
   return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : undefined;
+}
+
+/** "1 Aug" -> "31 Aug 2026" style label for the active filter window. */
+function rangeLabel(from?: string, to?: string): string {
+  if (from && to) return from === to ? from : `${from} → ${to}`;
+  if (from) return `from ${from}`;
+  return `until ${to}`;
+}
+
+function monthLabel(): string {
+  return new Date().toLocaleDateString("en-GB", {
+    month: "long",
+    year: "numeric",
+  });
 }
 
 function clampLimit(value?: string): number {
@@ -35,7 +49,7 @@ export default async function OverviewPage({
   const limit = clampLimit(searchParams.limit);
   const filtered = Boolean(from || to);
   const [summary, activity] = await Promise.all([
-    getSummary(),
+    getSummary({ from, to }),
     getActivity({ limit, from, to }),
   ]);
 
@@ -58,8 +72,15 @@ export default async function OverviewPage({
         <>
           <section className="grid metrics-grid">
             <MetricCard
-              label="Gross revenue (today)"
+              label={filtered ? "Gross revenue (filtered)" : "Gross revenue (today)"}
               value={fmtMoney(summary.metrics.total_revenue)}
+              sub={filtered ? rangeLabel(from, to) : undefined}
+              icon="wallet"
+            />
+            <MetricCard
+              label="Gross revenue (month)"
+              value={fmtMoney(summary.metrics.month_revenue)}
+              sub={monthLabel()}
               icon="wallet"
             />
             <MetricCard
@@ -75,10 +96,22 @@ export default async function OverviewPage({
               icon="receipt"
             />
             <MetricCard
-              label="Shifts today"
+              label={filtered ? "Shifts" : "Shifts today"}
               value={`${summary.metrics.shifts_opened} / ${summary.metrics.shifts_closed}`}
               sub="opened / closed"
               icon="drawer-open"
+            />
+            <MetricCard
+              label={filtered ? "First login" : "First login today"}
+              value={fmtUtc(summary.metrics.first_login_at)}
+              sub="first register opened"
+              icon="user"
+            />
+            <MetricCard
+              label={filtered ? "Last logout" : "Last logout today"}
+              value={fmtUtc(summary.metrics.last_logout_at)}
+              sub="last register closed"
+              icon="drawer-close"
             />
           </section>
 
